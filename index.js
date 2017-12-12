@@ -9,7 +9,7 @@ const fp = plugin =>
     })
 
     next()
-  }, '^0.30')
+  }, '^0.35')
 
 function plugin (fastify, { graphql, graphiql, printSchema }, next) {
   fastify
