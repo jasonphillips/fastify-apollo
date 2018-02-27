@@ -3,7 +3,6 @@
 const test = require('tap').test
 const fastify = require('fastify')
 const makeExecutableSchema = require('graphql-tools').makeExecutableSchema
-const request = require('request')
 const fastifyApollo = require('./index')
 
 const typeDefs = `
@@ -30,134 +29,103 @@ const opts = {
 }
 
 test('GET /graphql', t => {
+  t.plan(2)
+
+  const server = fastify()
+
+  server.register(fastifyApollo, opts)
+
+  server.inject({
+    method: 'GET',
+    url: '/'
+  }, (err, res) => {
+    t.error(err)
+    t.strictEqual(res.statusCode, 400)
+  })
+})
+
+test('POST /graphql', t => {
   t.plan(3)
 
   const server = fastify()
 
   server.register(fastifyApollo, opts)
 
-  server.listen(0, err => {
+  server.inject({
+    method: 'POST',
+    url: '/',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    payload: {
+      query: '{hello}'
+    }
+  }, (err, res) => {
     t.error(err)
-
-    request.get(
-      'http://localhost:' + server.server.address().port,
-      function (err, response, body) {
-        t.error(err)
-        t.strictEqual(response.statusCode, 400)
-        server.close()
-      }
-    )
-  })
-})
-
-test('POST /graphql', t => {
-  t.plan(4)
-
-  const server = fastify()
-
-  server.register(fastifyApollo, opts)
-
-  server.listen(0, err => {
-    t.error(err)
-
-    request.post(
-      'http://localhost:' + server.server.address().port,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: {
-          query: '{hello}'
-        },
-        json: true
-      },
-      function (err, response, body) {
-        t.error(err)
-        t.strictEqual(response.statusCode, 200)
-        t.deepEqual(body.data, { hello: 'world' })
-        server.close()
-      }
-    )
+    t.strictEqual(res.statusCode, 200)
+    t.deepEqual(JSON.parse(res.payload).data, { hello: 'world' })
   })
 })
 
 test('POST /graphql (error)', t => {
-  t.plan(4)
+  t.plan(3)
 
   const server = fastify()
 
   server.register(fastifyApollo, opts)
 
-  server.listen(0, err => {
+  server.inject({
+    method: 'POST',
+    url: '/',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    payload: {
+      query: '{goodbye}'
+    }
+  }, (err, res) => {
     t.error(err)
-
-    request.post(
-      'http://localhost:' + server.server.address().port,
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: {
-          query: '{goodbye}'
-        },
-        json: true
-      },
-      function (err, response, body) {
-        t.error(err)
-        t.strictEqual(response.statusCode, 400)
-        t.deepEqual(body.errors[0].message, 'Cannot query field "goodbye" on type "Query".')
-        server.close()
-      }
-    )
+    t.strictEqual(res.statusCode, 400)
+    t.deepEqual(JSON.parse(res.payload).errors[0].message, 'Cannot query field "goodbye" on type "Query".')
   })
 })
 
 test('GET /graphiql (options as boolean)', t => {
-  t.plan(4)
+  t.plan(3)
 
   const server = fastify()
 
   server.register(fastifyApollo, opts)
 
-  server.listen(0, err => {
+  server.inject({
+    method: 'GET',
+    url: '/graphiql'
+  }, (err, res) => {
     t.error(err)
-
-    request.get(
-      'http://localhost:' + server.server.address().port + '/graphiql',
-      function (err, response, body) {
-        t.error(err)
-        t.strictEqual(response.statusCode, 200)
-        t.strictEqual(response.headers['content-type'], 'text/html')
-        server.close()
-      }
-    )
+    t.strictEqual(res.statusCode, 200)
+    t.strictEqual(res.headers['content-type'], 'text/html')
   })
 })
 
 test('GET /graphiql (options as object)', t => {
-  t.plan(4)
+  t.plan(3)
 
   const server = fastify()
 
   server.register(fastifyApollo, opts)
 
-  server.listen(0, err => {
+  server.inject({
+    method: 'GET',
+    url: '/graphiql'
+  }, (err, res) => {
     t.error(err)
-
-    request.get(
-      'http://localhost:' + server.server.address().port + '/graphiql',
-      function (err, response, body) {
-        t.error(err)
-        t.strictEqual(response.statusCode, 200)
-        t.strictEqual(response.headers['content-type'], 'text/html')
-        server.close()
-      }
-    )
+    t.strictEqual(res.statusCode, 200)
+    t.strictEqual(res.headers['content-type'], 'text/html')
   })
 })
 
 test('GET /schema', t => {
-  t.plan(4)
+  t.plan(3)
 
   const server = fastify()
 
@@ -165,39 +133,12 @@ test('GET /schema', t => {
     printSchema: true
   }))
 
-  server.listen(0, err => {
+  server.inject({
+    method: 'GET',
+    url: '/schema'
+  }, (err, res) => {
     t.error(err)
-
-    request.get(
-      'http://localhost:' + server.server.address().port + '/schema',
-      function (err, response, body) {
-        t.error(err)
-        t.strictEqual(response.statusCode, 200)
-        t.strictEqual(response.headers['content-type'], 'text/plain')
-        server.close()
-      }
-    )
-  })
-})
-
-test('prefix', t => {
-  t.plan(4)
-
-  const server = fastify()
-
-  server.register(fastifyApollo, Object.assign({}, opts, {
-    prefix: '/api',
-    printSchema: true
-  }))
-
-  server.ready(function (err) {
-    t.error(err)
-
-    for (let route of server) {
-      const path = Object.keys(route)[0]
-      t.match(path, /^\/api/)
-    }
-
-    server.close()
+    t.strictEqual(res.statusCode, 200)
+    t.strictEqual(res.headers['content-type'], 'text/plain')
   })
 })
